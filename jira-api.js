@@ -31,9 +31,9 @@ function JiraAPI (baseUrl, apiExtension, username, password, jql) {
             headers: {
                 'Authorization': 'Basic ' + btoa(username + ':' + password)
             }            
-        }
+        };
         return ajaxWrapper(url, options);
-    };
+    }
 
     function getIssue (id) {
         return ajaxWrapper('/issue/' + id);
@@ -55,7 +55,7 @@ function JiraAPI (baseUrl, apiExtension, username, password, jql) {
                 'started': started,
                 'timeSpent': timeSpent
             })
-        }
+        };
         return ajaxWrapper(url, options);
     }
 
@@ -170,6 +170,6 @@ function JiraAPI (baseUrl, apiExtension, username, password, jql) {
 
         return extended;
 
-    };
+    }
 
 }

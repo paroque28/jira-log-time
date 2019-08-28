@@ -59,7 +59,7 @@ function onDOMContentLoaded() {
 
             // asynchronously fetch and draw total worklog time
             issues.forEach(function(issue) {
-                getWorklog(issue.key);
+                getIssue(issue);
             });
 
         }
@@ -73,39 +73,51 @@ function onDOMContentLoaded() {
 
 
         /****************
-        Worklog functions
+        Issue metrics functions
         ****************/
 
-        // Fetch and refresh worklog row
-        function getWorklog(issueId) {
+        // Fetch and refresh issue row
+        function getIssue(issue) {
 
             // total time and it's acompanying loader are in the same td, so we can use previousSibling
-            var totalTime = document.querySelector('div[class="issue-total-time-spent"][data-issue-id="' + issueId + '"]');
-            var loader = totalTime.previousSibling;
+            var totalTime = document.querySelector('div[class="issue-total-time-spent"][data-issue-id="' + issue.key + '"]');
+            var totalLoader = totalTime.previousSibling;
+
+            var remainingTime = document.querySelector('div[class="issue-remaining-time"][data-issue-id="' + issue.key + '"]');
+            var remainingLoader = remainingTime.previousSibling;
 
             // hide worklog time and show loading
             totalTime.style.display = 'none';
-            loader.style.display = 'block';
+            totalLoader.style.display = 'block';
 
-            // fetch worklog
-            JIRA.getIssueWorklog(issueId)
-                .then(onWorklogFetchSuccess, onWorklogFetchError);
+            remainingTime.style.display = 'none';
+            remainingLoader.style.display = 'block';
 
-            function onWorklogFetchSuccess(response) {
+
+            // fetch issue
+            JIRA.getIssue(issue.key)
+                .then(onIssueFetchSuccess, onIssueFetchError);
+
+            function onIssueFetchSuccess(response) {
                 // set total time
-                totalTime.innerText = sumWorklogs(response.worklogs);
+                totalTime.innerText = sumWorklogs(response.fields.worklog.worklogs);
+                remainingTime.innerText = response.fields.timetracking.remainingEstimate;
                 // show worklog time and hide loading
                 totalTime.style.display = 'block';
-                loader.style.display = 'none';
+                totalLoader.style.display = 'none';
+                remainingTime.style.display = 'block';
+                remainingLoader.style.display = 'none';
                 // clear time input value
-                var timeInput = document.querySelector('input[data-issue-id=' + issueId + ']');
+                var timeInput = document.querySelector('input[data-issue-id=' + issue.key + ']');
                 timeInput.value = '';
             }
 
-            function onWorklogFetchError(error) {
+            function onIssueFetchError(error) {
                 // show worklog time and hide loading inspite the error
                 totalTime.style.display = 'block';
-                loader.style.display = 'none';
+                remainingTime.style.display = 'block';
+                totalLoader.style.display = 'none';
+                remainingLoader.style.display = 'none';
                 genericResponseError(error);
             }
 
@@ -162,8 +174,8 @@ function onDOMContentLoaded() {
             var tbody = buildHTML('tbody');
 
             issues.forEach(function(issue) {
-                var row = generateLogTableRow(issue.key, issue.fields.summary);
-                tbody.appendChild(row)
+                var row = generateLogTableRow(issue.key, issue.fields.summary, issue.fields.status.name);
+                tbody.appendChild(row);
             });
 
             logTable.appendChild(tbody);
@@ -171,7 +183,7 @@ function onDOMContentLoaded() {
         }
 
         // generate all html elements for issue table
-        function generateLogTableRow(id, summary) {
+        function generateLogTableRow(id, summary, status) {
 
             /*************
              Issue ID cell
@@ -193,6 +205,14 @@ function onDOMContentLoaded() {
 
             jiraLink.appendChild(idText);
             idCell.appendChild(jiraLink);
+
+            /************
+            Status summary
+            ************/
+           var statusCell = buildHTML('td', status, {
+            class: 'issue-status'
+            });
+
 
             /************
             Issue summary
@@ -221,6 +241,28 @@ function onDOMContentLoaded() {
             });
             totalTimeContainer.appendChild(loader);
             totalTimeContainer.appendChild(totalTime);
+
+             /***************
+            Remaining time
+            ***************/
+            // summary loader
+            var remainingLoader = buildHTML('div', 'none', {
+                class: 'loader-mini',
+                'data-issue-id': id
+            });
+            // summary total time
+            var remainingTime = buildHTML('div', null, {
+                class: 'issue-remaining-time',
+                'data-issue-id': id
+            });
+            // Issue remaining time
+            var remainingTimeContainer = buildHTML('td', null, {
+                class: 'remaining-time-container',
+                'data-issue-id': id
+            });
+            remainingTimeContainer.appendChild(remainingLoader);
+            remainingTimeContainer.appendChild(remainingTime);
+
 
             /*********
             Time input
@@ -270,7 +312,9 @@ function onDOMContentLoaded() {
             });
 
             row.appendChild(idCell);
+            row.appendChild(statusCell);
             row.appendChild(summaryCell);
+            row.appendChild(remainingTimeContainer);
             row.appendChild(totalTimeContainer);
             row.appendChild(timeInputCell);
             row.appendChild(dateInputCell);
@@ -313,7 +357,7 @@ function onDOMContentLoaded() {
 
             JIRA.updateWorklog(issueId, timeInput.value, startedTime)
                 .then(function(data) {
-                    getWorklog(issueId);
+                    getIssue(issueId);
                 }, function(error) {
                     // hide total time and show loading spinner;
                     toggleVisibility('div[class="issue-total-time-spent"][data-issue-id=' + issueId + ']');
