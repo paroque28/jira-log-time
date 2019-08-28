@@ -35,9 +35,9 @@
             username: '',
             password: '',
             description: '',
-            baseUrl: '',
+            baseUrl: 'https://jira.wrs.com',
             apiExtension: '/rest/api/2',
-            jql: 'assignee=currentUser()'
+            jql: 'sprint in openSprints() AND assignee=currentUser()  AND issuetype in (Story, Sub-Task)'
         }, function(items) {
 
             document.getElementById('username').value = items.username;
