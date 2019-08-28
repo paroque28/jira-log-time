@@ -37,7 +37,7 @@
             description: '',
             baseUrl: 'https://jira.wrs.com',
             apiExtension: '/rest/api/2',
-            jql: 'sprint in openSprints() AND assignee=currentUser()  AND issuetype in (Story, Sub-Task)'
+            jql: 'sprint in openSprints() AND assignee=currentUser()  AND issuetype in (Story, Sub-Task) ORDER BY status DESC, updated DESC'
         }, function(items) {
 
             document.getElementById('username').value = items.username;
