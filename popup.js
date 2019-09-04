@@ -12,7 +12,30 @@ function onDOMContentLoaded() {
         },
         init);
 
-
+    function orderByParent(issues){
+        var sorted = [];
+        for (var i in issues){
+            var issue = issues[i];
+            switch(issue.fields.issuetype.name) {
+                case 'Sub-Task':
+                  break;
+                case 'Story':
+                    sorted.push(issue);
+                    for (var j in issues){
+                        var issuesub = issues[j];
+                        if(issuesub.fields.parent){
+                            if(issuesub.fields.parent.key === issue.key){
+                                sorted.push(issuesub);
+                            }
+                        }
+                    }
+                    break;
+                default:
+                  sorted.push(issue);
+              }
+        }
+        return sorted;
+    }
 
     /*************
     Initialization
@@ -49,7 +72,9 @@ function onDOMContentLoaded() {
 
         function onFetchSuccess(response) {
 
-            var issues = response.issues;
+            var issues = orderByParent(response.issues);
+
+
 
             // create issues HTML table
             drawIssuesTable(issues);
@@ -60,6 +85,7 @@ function onDOMContentLoaded() {
             // asynchronously fetch and draw total worklog time
             issues.forEach(function(issue) {
                 getIssue(issue);
+                getIssueStatus(issue);
             });
 
         }
@@ -102,6 +128,7 @@ function onDOMContentLoaded() {
                 // set total time
                 totalTime.innerText = sumWorklogs(response.fields.worklog.worklogs);
                 remainingTime.innerText = response.fields.timetracking.remainingEstimate;
+                if (remainingTime.innerText === 'undefined') remainingTime.innerText = '';
                 // show worklog time and hide loading
                 totalTime.style.display = 'block';
                 totalLoader.style.display = 'none';
@@ -123,6 +150,37 @@ function onDOMContentLoaded() {
 
         }
 
+        /****************
+        Issue status functions
+        ****************/
+
+        // Fetch and refresh issue status
+        function getIssueStatus(issue) {
+
+            var statusDropDown = document.querySelector('select[class="issue-status-dropdown"][data-issue-id="' + issue.key + '"]');
+
+
+            // fetch issue
+            JIRA.getIssueTransitions(issue.key)
+                .then(onIssueFetchSuccess, onIssueFetchError);
+
+            function onIssueFetchSuccess(response) {
+                for (var x in response.transitions) {
+                    var transition = response.transitions[x];
+                    var statusOption = buildHTML('option', transition.name, {
+                        value: transition.name,
+                        'data-issue-id': issue.key
+                    });
+                    statusDropDown.appendChild(statusOption);
+                  }
+            }
+
+            function onIssueFetchError(error) {
+                genericResponseError(error);
+            }
+
+        }
+
         // Worklogs sum in 'jira format' (1w 2d 3h 44m)
         function sumWorklogs(worklogs) {
 
@@ -130,25 +188,28 @@ function onDOMContentLoaded() {
             var totalSeconds = worklogs.reduce(function(a, b) {
                 return { timeSpentSeconds: a.timeSpentSeconds + b.timeSpentSeconds }
             }, { timeSpentSeconds: 0 }).timeSpentSeconds;
+            if(totalSeconds){
+                // Get how many weeks in totalSeconds
+                var totalWeeks = Math.floor(totalSeconds / 144000);
+                // Deduce weeks from totalSeconds
+                totalSeconds = totalSeconds % 144000;
+                // Get how many days in the rest of the totalSeconds
+                var totalDays = Math.floor(totalSeconds / 28800);
+                // Deduce days from totalSeconds
+                totalSeconds = totalSeconds % 28800;
+                // Get how many hours in the rest of the totalSeconds
+                var totalHours = Math.floor(totalSeconds / 3600);
+                // Deduce hours from totalSeconds
+                totalSeconds = totalSeconds % 3600;
+                // Get how many minutes in the rest of the totalSeconds
+                var totalMinutes = Math.floor(totalSeconds / 60);
 
-            // Get how many weeks in totalSeconds
-            var totalWeeks = Math.floor(totalSeconds / 144000);
-            // Deduce weeks from totalSeconds
-            totalSeconds = totalSeconds % 144000;
-            // Get how many days in the rest of the totalSeconds
-            var totalDays = Math.floor(totalSeconds / 28800);
-            // Deduce days from totalSeconds
-            totalSeconds = totalSeconds % 28800;
-            // Get how many hours in the rest of the totalSeconds
-            var totalHours = Math.floor(totalSeconds / 3600);
-            // Deduce hours from totalSeconds
-            totalSeconds = totalSeconds % 3600;
-            // Get how many minutes in the rest of the totalSeconds
-            var totalMinutes = Math.floor(totalSeconds / 60);
-
-            // return it in 'nicely' formated Jira format
-            return (totalWeeks ? totalWeeks + 'w' : '') + ' ' + (totalDays ? totalDays + 'd' : '') + ' ' + (totalHours ? totalHours + 'h' : '') + ' ' + (totalMinutes ? totalMinutes + 'm' : '');
-
+                // return it in 'nicely' formated Jira format
+                return (totalWeeks ? totalWeeks + 'w' : '') + ' ' + (totalDays ? totalDays + 'd' : '') + ' ' + (totalHours ? totalHours + 'h' : '') + ' ' + (totalMinutes ? totalMinutes + 'm' : '');
+            }
+            else{
+                return '0h';
+            }
         }
 
 
@@ -174,7 +235,7 @@ function onDOMContentLoaded() {
             var tbody = buildHTML('tbody');
 
             issues.forEach(function(issue) {
-                var row = generateLogTableRow(issue.key, issue.fields.summary, issue.fields.status.name);
+                var row = generateLogTableRow(issue.key, issue.fields.summary, issue.fields.issuetype.name);
                 tbody.appendChild(row);
             });
 
@@ -183,14 +244,20 @@ function onDOMContentLoaded() {
         }
 
         // generate all html elements for issue table
-        function generateLogTableRow(id, summary, status) {
+        function generateLogTableRow(id, summary, issuetype) {
 
             /*************
              Issue ID cell
             *************/
+            
             var idCell = buildHTML('td', null, {
                 class: 'issue-id'
             });
+            if(issuetype === "Story"){
+                idCell = buildHTML('td', null, {
+                    class: 'issue-id-story'
+                });
+            }
 
             var idText = document.createTextNode(id);
 
@@ -209,9 +276,17 @@ function onDOMContentLoaded() {
             /************
             Status summary
             ************/
-           var statusCell = buildHTML('td', status, {
-            class: 'issue-status'
+           var statusCell = buildHTML('td', null, {
+                class: 'issue-status',
+                'data-issue-id': id
             });
+            var statusDropDown = buildHTML('select', null, {
+                class: 'issue-status-dropdown',
+                'data-issue-id': id
+            });
+
+            //statusDropDown.addEventListener('click', null);
+            statusCell.appendChild(statusDropDown);
 
 
             /************
@@ -317,7 +392,6 @@ function onDOMContentLoaded() {
             row.appendChild(remainingTimeContainer);
             row.appendChild(totalTimeContainer);
             row.appendChild(timeInputCell);
-            row.appendChild(dateInputCell);
             row.appendChild(actionCell);
 
             return row;

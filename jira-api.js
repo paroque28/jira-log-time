@@ -18,6 +18,7 @@ function JiraAPI (baseUrl, apiExtension, username, password, jql) {
         getIssue : getIssue,
         getIssues: getIssues,
         getIssueWorklog : getIssueWorklog,
+        getIssueTransitions: getIssueTransitions,
         updateWorklog : updateWorklog
     };
 
@@ -45,6 +46,10 @@ function JiraAPI (baseUrl, apiExtension, username, password, jql) {
 
     function getIssueWorklog (id) {
         return ajaxWrapper('/issue/' + id + '/worklog');
+    }
+
+    function getIssueTransitions (id) {
+        return ajaxWrapper('/issue/' + id + '/transitions');
     }
 
     function updateWorklog (id, timeSpent, started) {
